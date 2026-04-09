@@ -1,12 +1,11 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { requireAuth, requireRole } from "./helpers";
 
 export const generateUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    await requireAuth(ctx);
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -19,26 +18,17 @@ export const createDoctorProfile = mutation({
     profileImage: v.optional(v.id("_storage")),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    const user = await ctx.db.get(userId);
-    if (!user || user.role !== "doctor") {
-      throw new Error("Only doctors can create a profile");
-    }
+    const user = await requireRole(ctx, "doctor");
 
     const existing = await ctx.db
       .query("doctorProfiles")
-      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
       .unique();
-    if (existing) throw new Error("Doctor profile already exists");
+    if (existing) throw new Error("Profile already exists");
 
     return await ctx.db.insert("doctorProfiles", {
-      userId,
-      fullName: args.fullName,
-      specialization: args.specialization,
-      bio: args.bio,
-      profileImage: args.profileImage,
+      userId: user._id,
+      ...args,
     });
   },
 });
@@ -51,17 +41,11 @@ export const updateDoctorProfile = mutation({
     profileImage: v.optional(v.id("_storage")),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    const user = await ctx.db.get(userId);
-    if (!user || user.role !== "doctor") {
-      throw new Error("Only doctors can update a profile");
-    }
+    const user = await requireRole(ctx, "doctor");
 
     const existing = await ctx.db
       .query("doctorProfiles")
-      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .withIndex("by_userId", (q) => q.eq("userId", user._id))
       .unique();
     if (!existing) throw new Error("No profile to update");
 
@@ -77,14 +61,12 @@ export const updateDoctorProfile = mutation({
 export const getDoctorProfile = query({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
-    const requesterId = await getAuthUserId(ctx);
-    if (!requesterId) throw new Error("Not authenticated");
+    await requireAuth(ctx);
 
     const profile = await ctx.db
       .query("doctorProfiles")
       .withIndex("by_userId", (q) => q.eq("userId", args.userId))
       .unique();
-
     if (!profile) return null;
 
     const imageUrl = profile.profileImage
@@ -100,15 +82,14 @@ export const listDoctors = query({
     specialization: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    await requireAuth(ctx);
 
     const doctors = await ctx.db
       .query("users")
       .withIndex("by_role", (q) => q.eq("role", "doctor"))
       .take(50);
 
-    const doctorsWithProfiles = await Promise.all(
+    const results = await Promise.all(
       doctors.map(async (doctor) => {
         const profile = await ctx.db
           .query("doctorProfiles")
@@ -119,20 +100,22 @@ export const listDoctors = query({
           ? await ctx.storage.getUrl(profile.profileImage)
           : null;
 
-        return { ...doctor, profile: profile ? { ...profile, imageUrl } : null };
+        return {
+          ...doctor,
+          profile: profile ? { ...profile, imageUrl } : null,
+        };
       }),
     );
 
-    // Filter by specialization client-side (case-insensitive partial match)
     if (args.specialization) {
-      const search = args.specialization.toLowerCase();
-      return doctorsWithProfiles.filter(
+      const term = args.specialization.toLowerCase();
+      return results.filter(
         (d) =>
-          d.profile?.specialization?.toLowerCase().includes(search) ||
-          d.profile?.fullName?.toLowerCase().includes(search),
+          d.profile?.specialization?.toLowerCase().includes(term) ||
+          d.profile?.fullName?.toLowerCase().includes(term),
       );
     }
 
-    return doctorsWithProfiles;
+    return results;
   },
 });

@@ -5,9 +5,7 @@ import { v } from "convex/values";
 export default defineSchema({
   ...authTables,
 
-  // Override auth's users table to add custom "role" field
   users: defineTable({
-    // Fields from authTables
     name: v.optional(v.string()),
     email: v.optional(v.string()),
     emailVerificationTime: v.optional(v.number()),
@@ -15,7 +13,6 @@ export default defineSchema({
     phoneVerificationTime: v.optional(v.number()),
     image: v.optional(v.string()),
     isAnonymous: v.optional(v.boolean()),
-    // Custom field
     role: v.optional(v.union(v.literal("doctor"), v.literal("patient"))),
   })
     .index("email", ["email"])
@@ -34,9 +31,9 @@ export default defineSchema({
 
   availabilitySlots: defineTable({
     doctorId: v.id("users"),
-    date: v.string(), // YYYY-MM-DD
-    startTime: v.string(), // HH:mm
-    endTime: v.string(), // HH:mm
+    date: v.string(),
+    startTime: v.string(),
+    endTime: v.string(),
     isBooked: v.boolean(),
   })
     .index("by_doctorId", ["doctorId"])
@@ -46,9 +43,9 @@ export default defineSchema({
     patientId: v.id("users"),
     doctorId: v.id("users"),
     slotId: v.id("availabilitySlots"),
-    date: v.string(), // YYYY-MM-DD
-    startTime: v.string(), // HH:mm
-    endTime: v.string(), // HH:mm
+    date: v.string(),
+    startTime: v.string(),
+    endTime: v.string(),
     status: v.union(
       v.literal("pending"),
       v.literal("confirmed"),

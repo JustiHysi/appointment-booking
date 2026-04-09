@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { requireAuth, requireRole } from "./helpers";
 
 export const addAvailabilitySlot = mutation({
   args: {
@@ -9,16 +9,10 @@ export const addAvailabilitySlot = mutation({
     endTime: v.string(),
   },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    const user = await ctx.db.get(userId);
-    if (!user || user.role !== "doctor") {
-      throw new Error("Only doctors can add availability slots");
-    }
+    const user = await requireRole(ctx, "doctor");
 
     return await ctx.db.insert("availabilitySlots", {
-      doctorId: userId,
+      doctorId: user._id,
       date: args.date,
       startTime: args.startTime,
       endTime: args.endTime,
@@ -30,8 +24,7 @@ export const addAvailabilitySlot = mutation({
 export const removeAvailabilitySlot = mutation({
   args: { slotId: v.id("availabilitySlots") },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    const userId = await requireAuth(ctx);
 
     const slot = await ctx.db.get(args.slotId);
     if (!slot) throw new Error("Slot not found");
@@ -45,17 +38,11 @@ export const removeAvailabilitySlot = mutation({
 export const getMyAvailability = query({
   args: {},
   handler: async (ctx) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
-
-    const user = await ctx.db.get(userId);
-    if (!user || user.role !== "doctor") {
-      throw new Error("Only doctors can view their own availability");
-    }
+    const user = await requireRole(ctx, "doctor");
 
     return await ctx.db
       .query("availabilitySlots")
-      .withIndex("by_doctorId", (q) => q.eq("doctorId", userId))
+      .withIndex("by_doctorId", (q) => q.eq("doctorId", user._id))
       .take(100);
   },
 });
@@ -63,8 +50,7 @@ export const getMyAvailability = query({
 export const getDoctorAvailability = query({
   args: { doctorId: v.id("users") },
   handler: async (ctx, args) => {
-    const userId = await getAuthUserId(ctx);
-    if (!userId) throw new Error("Not authenticated");
+    await requireAuth(ctx);
 
     return await ctx.db
       .query("availabilitySlots")
