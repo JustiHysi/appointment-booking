@@ -18,8 +18,8 @@ export default function AvailabilityPage() {
   if (slots === undefined) {
     return (
       <div className="animate-pulse space-y-4">
-        <div className="h-8 w-48 rounded bg-gray-200" />
-        <div className="h-32 rounded-xl bg-gray-200" />
+        <div className="h-8 w-48 rounded bg-slate-200" />
+        <div className="h-32 rounded-2xl bg-slate-200" />
       </div>
     );
   }
@@ -71,22 +71,22 @@ export default function AvailabilityPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-900">
+      <h1 className="text-2xl font-bold text-slate-900">
         Manage Availability
       </h1>
-      <p className="mt-1 text-sm text-gray-500">
+      <p className="mt-1 text-sm text-slate-500">
         Add or remove your available time slots
       </p>
 
       {/* Add Slot Form */}
       <form
         onSubmit={handleAdd}
-        className="mt-6 rounded-xl bg-white p-6 shadow-sm"
+        className="mt-6 rounded-2xl bg-white p-6 shadow-md ring-1 ring-slate-200/60"
       >
-        <h2 className="text-lg font-semibold text-gray-900">Add New Slot</h2>
+        <h2 className="text-lg font-semibold text-slate-900">Add New Slot</h2>
         <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-slate-700">
               Date
             </label>
             <input
@@ -94,11 +94,11 @@ export default function AvailabilityPage() {
               value={date}
               onChange={(e) => setDate(e.target.value)}
               required
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1.5 w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 transition-colors focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-slate-700">
               Start Time
             </label>
             <input
@@ -106,11 +106,11 @@ export default function AvailabilityPage() {
               value={startTime}
               onChange={(e) => setStartTime(e.target.value)}
               required
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1.5 w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 transition-colors focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-slate-700">
               End Time
             </label>
             <input
@@ -118,40 +118,40 @@ export default function AvailabilityPage() {
               value={endTime}
               onChange={(e) => setEndTime(e.target.value)}
               required
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1.5 w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 transition-colors focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
             />
           </div>
         </div>
         <button
           type="submit"
           disabled={submitting}
-          className="mt-4 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          className="mt-4 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-emerald-700 hover:shadow-md disabled:opacity-50"
         >
           {submitting ? "Adding..." : "Add Slot"}
         </button>
       </form>
 
       {/* Existing Slots */}
-      <div className="mt-6">
-        <h2 className="text-lg font-semibold text-gray-900">Your Slots</h2>
+      <div className="mt-8">
+        <h2 className="text-lg font-semibold text-slate-900">Your Slots</h2>
 
         {sortedDates.length === 0 ? (
-          <p className="mt-4 text-gray-500">
+          <p className="mt-4 text-slate-500">
             No availability slots yet. Add your first slot above.
           </p>
         ) : (
           <div className="mt-4 space-y-4">
             {sortedDates.map((d) => (
               <div key={d}>
-                <h3 className="text-sm font-medium text-gray-700">{d}</h3>
+                <h3 className="text-sm font-medium text-slate-700">{d}</h3>
                 <div className="mt-2 space-y-2">
                   {slotsByDate[d].map((slot) => (
                     <div
                       key={slot._id}
-                      className="flex items-center justify-between rounded-lg bg-white p-3 shadow-sm"
+                      className="flex items-center justify-between rounded-2xl bg-white p-4 shadow-md ring-1 ring-slate-200/60"
                     >
                       <div className="flex items-center gap-3">
-                        <span className="text-sm font-medium text-gray-900">
+                        <span className="text-sm font-medium text-slate-900">
                           {slot.startTime} - {slot.endTime}
                         </span>
                         {slot.isBooked && (
@@ -163,7 +163,7 @@ export default function AvailabilityPage() {
                       {!slot.isBooked && (
                         <button
                           onClick={() => handleRemove(slot._id)}
-                          className="text-sm text-red-600 hover:text-red-700"
+                          className="text-sm font-medium text-red-600 hover:text-red-700"
                         >
                           Remove
                         </button>

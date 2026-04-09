@@ -25,8 +25,8 @@ export default function DoctorDetailPage() {
   if (profile === undefined || slots === undefined) {
     return (
       <div className="animate-pulse space-y-4">
-        <div className="h-8 w-48 rounded bg-gray-200" />
-        <div className="h-32 rounded-xl bg-gray-200" />
+        <div className="h-8 w-48 rounded bg-slate-200" />
+        <div className="h-32 rounded-2xl bg-slate-200" />
       </div>
     );
   }
@@ -66,55 +66,55 @@ export default function DoctorDetailPage() {
     <div>
       <button
         onClick={() => router.back()}
-        className="mb-4 text-sm text-blue-600 hover:text-blue-700"
+        className="mb-4 text-sm font-medium text-emerald-600 hover:text-emerald-700"
       >
         &larr; Back to doctors
       </button>
 
       {/* Doctor Profile */}
-      <div className="rounded-xl bg-white p-6 shadow-sm">
+      <div className="rounded-2xl bg-white p-6 shadow-md ring-1 ring-slate-200/60">
         <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-100 text-2xl font-bold text-blue-600">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-2xl font-bold text-emerald-600">
             {(profile?.fullName ?? "D").charAt(0).toUpperCase()}
           </div>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">
+            <h1 className="text-2xl font-bold text-slate-900">
               {profile?.fullName ?? "Doctor"}
             </h1>
             {profile?.specialization && (
-              <p className="text-gray-500">{profile.specialization}</p>
+              <p className="text-slate-500">{profile.specialization}</p>
             )}
           </div>
         </div>
         {profile?.bio && (
-          <p className="mt-4 text-gray-600">{profile.bio}</p>
+          <p className="mt-4 text-slate-600">{profile.bio}</p>
         )}
       </div>
 
       {/* Available Slots */}
       <div className="mt-6">
-        <h2 className="text-lg font-semibold text-gray-900">
+        <h2 className="text-lg font-semibold text-slate-900">
           Available Slots
         </h2>
 
         {sortedDates.length === 0 ? (
-          <p className="mt-4 text-gray-500">
+          <p className="mt-4 text-slate-500">
             No available slots at the moment.
           </p>
         ) : (
           <div className="mt-4 space-y-4">
             {sortedDates.map((date) => (
               <div key={date}>
-                <h3 className="text-sm font-medium text-gray-700">{date}</h3>
+                <h3 className="text-sm font-medium text-slate-700">{date}</h3>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {slotsByDate[date].map((slot) => (
                     <button
                       key={slot._id}
                       onClick={() => setBookingSlotId(slot._id)}
-                      className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+                      className={`rounded-xl border px-3 py-2 text-sm font-medium transition-all ${
                         bookingSlotId === slot._id
-                          ? "border-blue-500 bg-blue-50 text-blue-700"
-                          : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                          ? "border-emerald-500 bg-emerald-50 text-emerald-700 shadow-sm"
+                          : "border-slate-300 text-slate-700 hover:bg-slate-50"
                       }`}
                     >
                       {slot.startTime} - {slot.endTime}
@@ -129,19 +129,19 @@ export default function DoctorDetailPage() {
 
       {/* Booking Form */}
       {bookingSlotId && (
-        <div className="mt-6 rounded-xl bg-white p-6 shadow-sm">
-          <h3 className="text-lg font-semibold text-gray-900">
+        <div className="mt-6 rounded-2xl bg-white p-6 shadow-md ring-1 ring-slate-200/60">
+          <h3 className="text-lg font-semibold text-slate-900">
             Book Appointment
           </h3>
           <div className="mt-4">
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium text-slate-700">
               Reason for visit (optional)
             </label>
             <textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               rows={3}
-              className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="mt-1.5 w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 transition-colors placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
               placeholder="Describe your symptoms or reason for the visit..."
             />
           </div>
@@ -149,13 +149,13 @@ export default function DoctorDetailPage() {
             <button
               onClick={handleBook}
               disabled={submitting}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+              className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-emerald-700 hover:shadow-md disabled:opacity-50"
             >
               {submitting ? "Booking..." : "Confirm Booking"}
             </button>
             <button
               onClick={() => setBookingSlotId(null)}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
             >
               Cancel
             </button>
