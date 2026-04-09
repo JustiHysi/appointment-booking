@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
 import { mutation, query } from "./_generated/server";
 import { requireAuth, requireRole } from "./helpers";
 
@@ -36,14 +37,15 @@ export const removeAvailabilitySlot = mutation({
 });
 
 export const getMyAvailability = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
     const user = await requireRole(ctx, "doctor");
 
     return await ctx.db
       .query("availabilitySlots")
       .withIndex("by_doctorId", (q) => q.eq("doctorId", user._id))
-      .take(100);
+      .order("desc")
+      .paginate(args.paginationOpts);
   },
 });
 

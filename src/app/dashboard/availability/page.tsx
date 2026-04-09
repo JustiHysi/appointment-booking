@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, usePaginatedQuery } from "convex/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { api } from "../../../../convex/_generated/api";
@@ -8,7 +8,11 @@ import { Id } from "../../../../convex/_generated/dataModel";
 import { groupByDate } from "../../../lib/utils";
 
 export default function AvailabilityPage() {
-  const slots = useQuery(api.availability.getMyAvailability);
+  const { results: slots, status, loadMore } = usePaginatedQuery(
+    api.availability.getMyAvailability,
+    {},
+    { initialNumItems: 15 },
+  );
   const addSlot = useMutation(api.availability.addAvailabilitySlot);
   const removeSlot = useMutation(api.availability.removeAvailabilitySlot);
 
@@ -17,7 +21,7 @@ export default function AvailabilityPage() {
   const [endTime, setEndTime] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  if (slots === undefined) {
+  if (status === "LoadingFirstPage") {
     return (
       <div className="animate-pulse space-y-4">
         <div className="h-8 w-48 rounded bg-slate-200" />
@@ -130,6 +134,22 @@ export default function AvailabilityPage() {
                 </div>
               </div>
             ))}
+
+            {status === "CanLoadMore" && (
+              <div className="flex justify-center pt-2">
+                <button
+                  onClick={() => loadMore(15)}
+                  className="rounded-xl border border-slate-300 px-6 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                >
+                  Load More
+                </button>
+              </div>
+            )}
+            {status === "LoadingMore" && (
+              <div className="flex justify-center pt-2">
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
+              </div>
+            )}
           </div>
         )}
       </div>
