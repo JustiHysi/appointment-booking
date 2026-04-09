@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "convex/react";
 import { FormEvent, useState } from "react";
 import { toast } from "sonner";
 import { api } from "../../../../convex/_generated/api";
+import { Id } from "../../../../convex/_generated/dataModel";
 
 export default function AvailabilityPage() {
   const slots = useQuery(api.availability.getMyAvailability);
@@ -58,7 +59,7 @@ export default function AvailabilityPage() {
     }
   }
 
-  async function handleRemove(slotId: typeof slots[number]["_id"]) {
+  async function handleRemove(slotId: Id<"availabilitySlots">) {
     try {
       await removeSlot({ slotId });
       toast.success("Slot removed");
