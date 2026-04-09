@@ -1,6 +1,7 @@
 "use client";
 
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, usePaginatedQuery } from "convex/react";
+import { useQuery } from "convex/react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { api } from "../../../../convex/_generated/api";
@@ -8,13 +9,17 @@ import { Id } from "../../../../convex/_generated/dataModel";
 
 export default function AppointmentsPage() {
   const user = useQuery(api.users.getCurrentUser);
-  const appointments = useQuery(api.appointments.getMyAppointments);
+  const { results: appointments, status, loadMore } = usePaginatedQuery(
+    api.appointments.getMyAppointments,
+    {},
+    { initialNumItems: 10 },
+  );
   const updateStatus = useMutation(api.appointments.updateAppointmentStatus);
   const addNotes = useMutation(api.appointments.addDoctorNotes);
 
   const [notesMap, setNotesMap] = useState<Record<string, string>>({});
 
-  if (user === undefined || appointments === undefined) {
+  if (user === undefined || status === "LoadingFirstPage") {
     return (
       <div className="animate-pulse space-y-4">
         <div className="h-8 w-48 rounded bg-slate-200" />
@@ -29,11 +34,11 @@ export default function AppointmentsPage() {
 
   async function handleStatusUpdate(
     appointmentId: Id<"appointments">,
-    status: "confirmed" | "rejected" | "cancelled" | "completed",
+    newStatus: "confirmed" | "rejected" | "cancelled" | "completed",
   ) {
     try {
-      await updateStatus({ appointmentId, status });
-      toast.success(`Appointment ${status}`);
+      await updateStatus({ appointmentId, status: newStatus });
+      toast.success(`Appointment ${newStatus}`);
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to update status",
@@ -181,6 +186,23 @@ export default function AppointmentsPage() {
                 )}
             </div>
           ))}
+
+          {/* Load More */}
+          {status === "CanLoadMore" && (
+            <div className="flex justify-center pt-2">
+              <button
+                onClick={() => loadMore(10)}
+                className="rounded-xl border border-slate-300 px-6 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                Load More
+              </button>
+            </div>
+          )}
+          {status === "LoadingMore" && (
+            <div className="flex justify-center pt-2">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
+            </div>
+          )}
         </div>
       )}
     </div>

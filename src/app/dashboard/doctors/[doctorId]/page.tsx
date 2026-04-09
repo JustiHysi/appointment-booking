@@ -74,9 +74,17 @@ export default function DoctorDetailPage() {
       {/* Doctor Profile */}
       <div className="rounded-2xl bg-white p-6 shadow-md ring-1 ring-slate-200/60">
         <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-2xl font-bold text-emerald-600">
-            {(profile?.fullName ?? "D").charAt(0).toUpperCase()}
-          </div>
+          {profile?.imageUrl ? (
+            <img
+              src={profile.imageUrl}
+              alt={profile.fullName}
+              className="h-16 w-16 rounded-full object-cover"
+            />
+          ) : (
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-2xl font-bold text-emerald-600">
+              {(profile?.fullName ?? "D").charAt(0).toUpperCase()}
+            </div>
+          )}
           <div>
             <h1 className="text-2xl font-bold text-slate-900">
               {profile?.fullName ?? "Doctor"}

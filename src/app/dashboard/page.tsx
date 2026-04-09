@@ -6,17 +6,13 @@ import { api } from "../../../convex/_generated/api";
 
 export default function DashboardPage() {
   const user = useQuery(api.users.getCurrentUser);
-  const appointments = useQuery(api.appointments.getMyAppointments);
+  const stats = useQuery(api.appointments.getMyAppointmentStats);
 
-  if (user === undefined || appointments === undefined) {
+  if (user === undefined || stats === undefined) {
     return <LoadingSkeleton />;
   }
 
   const isDoctor = user?.role === "doctor";
-
-  const upcoming = appointments?.filter(
-    (a) => a.status === "pending" || a.status === "confirmed",
-  );
 
   return (
     <div>
@@ -32,19 +28,19 @@ export default function DashboardPage() {
         <div className="rounded-2xl bg-white p-6 shadow-md ring-1 ring-slate-200/60">
           <p className="text-sm text-slate-500">Upcoming</p>
           <p className="mt-1 text-3xl font-bold text-emerald-600">
-            {upcoming?.length ?? 0}
+            {stats?.upcoming ?? 0}
           </p>
         </div>
         <div className="rounded-2xl bg-white p-6 shadow-md ring-1 ring-slate-200/60">
           <p className="text-sm text-slate-500">Total Appointments</p>
           <p className="mt-1 text-3xl font-bold text-slate-900">
-            {appointments?.length ?? 0}
+            {stats?.total ?? 0}
           </p>
         </div>
         <div className="rounded-2xl bg-white p-6 shadow-md ring-1 ring-slate-200/60">
           <p className="text-sm text-slate-500">Completed</p>
           <p className="mt-1 text-3xl font-bold text-green-600">
-            {appointments?.filter((a) => a.status === "completed").length ?? 0}
+            {stats?.completed ?? 0}
           </p>
         </div>
       </div>
@@ -52,7 +48,7 @@ export default function DashboardPage() {
       {/* Quick Actions */}
       <div className="mt-8">
         <h2 className="text-lg font-semibold text-slate-900">Quick Actions</h2>
-        <div className="mt-3 flex gap-3">
+        <div className="mt-3 flex flex-wrap gap-3">
           {isDoctor ? (
             <>
               <Link
@@ -86,13 +82,13 @@ export default function DashboardPage() {
       </div>
 
       {/* Recent Appointments */}
-      {upcoming && upcoming.length > 0 && (
+      {stats?.recentUpcoming && stats.recentUpcoming.length > 0 && (
         <div className="mt-8">
           <h2 className="text-lg font-semibold text-slate-900">
             Upcoming Appointments
           </h2>
           <div className="mt-3 space-y-2">
-            {upcoming.slice(0, 5).map((appt) => (
+            {stats.recentUpcoming.map((appt) => (
               <div
                 key={appt._id}
                 className="flex items-center justify-between rounded-2xl bg-white p-4 shadow-md ring-1 ring-slate-200/60"

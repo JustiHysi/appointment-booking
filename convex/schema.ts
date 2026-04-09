@@ -27,8 +27,10 @@ export default defineSchema({
     fullName: v.string(),
     specialization: v.string(),
     bio: v.optional(v.string()),
-    profileImage: v.optional(v.string()),
-  }).index("by_userId", ["userId"]),
+    profileImage: v.optional(v.id("_storage")),
+  })
+    .index("by_userId", ["userId"])
+    .index("by_specialization", ["specialization"]),
 
   availabilitySlots: defineTable({
     doctorId: v.id("users"),

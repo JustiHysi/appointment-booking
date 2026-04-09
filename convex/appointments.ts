@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
@@ -37,9 +38,43 @@ export const bookAppointment = mutation({
   },
 });
 
-export const getMyAppointments = query({
+export const getMyAppointmentStats = query({
   args: {},
   handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const user = await ctx.db.get(userId);
+    if (!user) throw new Error("User not found");
+
+    const appointments =
+      user.role === "doctor"
+        ? await ctx.db
+            .query("appointments")
+            .withIndex("by_doctorId", (q) => q.eq("doctorId", userId))
+            .take(200)
+        : await ctx.db
+            .query("appointments")
+            .withIndex("by_patientId", (q) => q.eq("patientId", userId))
+            .take(200);
+
+    const upcoming = appointments.filter(
+      (a) => a.status === "pending" || a.status === "confirmed",
+    );
+    const completed = appointments.filter((a) => a.status === "completed");
+
+    return {
+      total: appointments.length,
+      upcoming: upcoming.length,
+      completed: completed.length,
+      recentUpcoming: upcoming.slice(0, 5),
+    };
+  },
+});
+
+export const getMyAppointments = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
@@ -50,13 +85,15 @@ export const getMyAppointments = query({
       return await ctx.db
         .query("appointments")
         .withIndex("by_doctorId", (q) => q.eq("doctorId", userId))
-        .take(100);
+        .order("desc")
+        .paginate(args.paginationOpts);
     }
 
     return await ctx.db
       .query("appointments")
       .withIndex("by_patientId", (q) => q.eq("patientId", userId))
-      .take(100);
+      .order("desc")
+      .paginate(args.paginationOpts);
   },
 });
 

@@ -2,12 +2,21 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
 export const createDoctorProfile = mutation({
   args: {
     fullName: v.string(),
     specialization: v.string(),
     bio: v.optional(v.string()),
-    profileImage: v.optional(v.string()),
+    profileImage: v.optional(v.id("_storage")),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -34,22 +43,63 @@ export const createDoctorProfile = mutation({
   },
 });
 
+export const updateDoctorProfile = mutation({
+  args: {
+    fullName: v.string(),
+    specialization: v.string(),
+    bio: v.optional(v.string()),
+    profileImage: v.optional(v.id("_storage")),
+  },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    const user = await ctx.db.get(userId);
+    if (!user || user.role !== "doctor") {
+      throw new Error("Only doctors can update a profile");
+    }
+
+    const existing = await ctx.db
+      .query("doctorProfiles")
+      .withIndex("by_userId", (q) => q.eq("userId", userId))
+      .unique();
+    if (!existing) throw new Error("No profile to update");
+
+    await ctx.db.patch(existing._id, {
+      fullName: args.fullName,
+      specialization: args.specialization,
+      bio: args.bio,
+      profileImage: args.profileImage ?? existing.profileImage,
+    });
+  },
+});
+
 export const getDoctorProfile = query({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
     const requesterId = await getAuthUserId(ctx);
     if (!requesterId) throw new Error("Not authenticated");
 
-    return await ctx.db
+    const profile = await ctx.db
       .query("doctorProfiles")
       .withIndex("by_userId", (q) => q.eq("userId", args.userId))
       .unique();
+
+    if (!profile) return null;
+
+    const imageUrl = profile.profileImage
+      ? await ctx.storage.getUrl(profile.profileImage)
+      : null;
+
+    return { ...profile, imageUrl };
   },
 });
 
 export const listDoctors = query({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    specialization: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
     if (!userId) throw new Error("Not authenticated");
 
@@ -64,9 +114,24 @@ export const listDoctors = query({
           .query("doctorProfiles")
           .withIndex("by_userId", (q) => q.eq("userId", doctor._id))
           .unique();
-        return { ...doctor, profile };
+
+        const imageUrl = profile?.profileImage
+          ? await ctx.storage.getUrl(profile.profileImage)
+          : null;
+
+        return { ...doctor, profile: profile ? { ...profile, imageUrl } : null };
       }),
     );
+
+    // Filter by specialization client-side (case-insensitive partial match)
+    if (args.specialization) {
+      const search = args.specialization.toLowerCase();
+      return doctorsWithProfiles.filter(
+        (d) =>
+          d.profile?.specialization?.toLowerCase().includes(search) ||
+          d.profile?.fullName?.toLowerCase().includes(search),
+      );
+    }
 
     return doctorsWithProfiles;
   },
