@@ -1,17 +1,19 @@
 "use client";
 
-import { useQuery } from "convex/react";
+import { usePaginatedQuery } from "convex/react";
 import Link from "next/link";
 import { useState } from "react";
 import { api } from "../../../../convex/_generated/api";
 
 export default function DoctorsPage() {
   const [search, setSearch] = useState("");
-  const doctors = useQuery(api.doctors.listDoctors, {
-    specialization: search || undefined,
-  });
+  const { results: doctors, status, loadMore } = usePaginatedQuery(
+    api.doctors.listDoctors,
+    { specialization: search || undefined },
+    { initialNumItems: 9 },
+  );
 
-  if (doctors === undefined) {
+  if (status === "LoadingFirstPage") {
     return (
       <div className="animate-pulse space-y-4">
         <div className="h-8 w-40 rounded bg-slate-200" />
@@ -29,7 +31,6 @@ export default function DoctorsPage() {
         Browse available doctors and book an appointment
       </p>
 
-      {/* Search */}
       <div className="mt-4">
         <input
           type="text"
@@ -42,56 +43,64 @@ export default function DoctorsPage() {
 
       {doctors.length === 0 ? (
         <p className="mt-8 text-center text-slate-500">
-          {search
-            ? "No doctors match your search."
-            : "No doctors available at the moment."}
+          {search ? "No doctors match your search." : "No doctors available at the moment."}
         </p>
       ) : (
-        <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {doctors.map((doctor) => (
-            <Link
-              key={doctor._id}
-              href={`/dashboard/doctors/${doctor._id}`}
-              className="rounded-2xl bg-white p-5 shadow-md ring-1 ring-slate-200/60 transition-all hover:shadow-lg"
-            >
-              <div className="flex items-center gap-3">
-                {doctor.profile?.imageUrl ? (
-                  <img
-                    src={doctor.profile.imageUrl}
-                    alt={doctor.profile.fullName}
-                    className="h-12 w-12 rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-lg font-bold text-emerald-600">
-                    {(doctor.profile?.fullName ?? doctor.name ?? "D")
-                      .charAt(0)
-                      .toUpperCase()}
-                  </div>
-                )}
-                <div>
-                  <p className="font-medium text-slate-900">
-                    {doctor.profile?.fullName ?? doctor.name ?? "Doctor"}
-                  </p>
-                  {doctor.profile?.specialization && (
-                    <p className="text-sm text-slate-500">
-                      {doctor.profile.specialization}
-                    </p>
+        <>
+          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {doctors.map((doctor) => (
+              <Link
+                key={doctor._id}
+                href={`/dashboard/doctors/${doctor._id}`}
+                className="rounded-2xl bg-white p-5 shadow-md ring-1 ring-slate-200/60 transition-all hover:shadow-lg"
+              >
+                <div className="flex items-center gap-3">
+                  {doctor.profile?.imageUrl ? (
+                    <img
+                      src={doctor.profile.imageUrl}
+                      alt={doctor.profile.fullName}
+                      className="h-12 w-12 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-lg font-bold text-emerald-600">
+                      {(doctor.profile?.fullName ?? doctor.name ?? "D").charAt(0).toUpperCase()}
+                    </div>
                   )}
+                  <div>
+                    <p className="font-medium text-slate-900">
+                      {doctor.profile?.fullName ?? doctor.name ?? "Doctor"}
+                    </p>
+                    {doctor.profile?.specialization && (
+                      <p className="text-sm text-slate-500">{doctor.profile.specialization}</p>
+                    )}
+                  </div>
                 </div>
-              </div>
-              {doctor.profile?.bio && (
-                <p className="mt-3 line-clamp-2 text-sm text-slate-600">
-                  {doctor.profile.bio}
-                </p>
-              )}
-              {!doctor.profile && (
-                <p className="mt-3 text-sm italic text-slate-400">
-                  Profile not yet set up
-                </p>
-              )}
-            </Link>
-          ))}
-        </div>
+                {doctor.profile?.bio && (
+                  <p className="mt-3 line-clamp-2 text-sm text-slate-600">{doctor.profile.bio}</p>
+                )}
+                {!doctor.profile && (
+                  <p className="mt-3 text-sm italic text-slate-400">Profile not yet set up</p>
+                )}
+              </Link>
+            ))}
+          </div>
+
+          {status === "CanLoadMore" && (
+            <div className="mt-6 flex justify-center">
+              <button
+                onClick={() => loadMore(9)}
+                className="rounded-xl border border-slate-300 px-6 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+              >
+                Load More
+              </button>
+            </div>
+          )}
+          {status === "LoadingMore" && (
+            <div className="mt-6 flex justify-center">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
+            </div>
+          )}
+        </>
       )}
     </div>
   );

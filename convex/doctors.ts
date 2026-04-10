@@ -1,4 +1,5 @@
 import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
 import { mutation, query } from "./_generated/server";
 import { requireAuth, requireRole } from "./helpers";
 
@@ -80,17 +81,22 @@ export const getDoctorProfile = query({
 export const listDoctors = query({
   args: {
     specialization: v.optional(v.string()),
+    paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, args) => {
     await requireAuth(ctx);
 
+    // Paginate at the DB level instead of .take(50) so we never fetch
+    // more than one page at a time.
     const doctors = await ctx.db
       .query("users")
       .withIndex("by_role", (q) => q.eq("role", "doctor"))
-      .take(50);
+      .paginate(args.paginationOpts);
 
-    const results = await Promise.all(
-      doctors.map(async (doctor) => {
+    // Enrich each doctor in the page with their profile + image URL.
+    // Promise.all keeps the N profile lookups concurrent instead of serial.
+    const page = await Promise.all(
+      doctors.page.map(async (doctor) => {
         const profile = await ctx.db
           .query("doctorProfiles")
           .withIndex("by_userId", (q) => q.eq("userId", doctor._id))
@@ -107,15 +113,20 @@ export const listDoctors = query({
       }),
     );
 
-    if (args.specialization) {
-      const term = args.specialization.toLowerCase();
-      return results.filter(
-        (d) =>
-          d.profile?.specialization?.toLowerCase().includes(term) ||
-          d.profile?.fullName?.toLowerCase().includes(term),
-      );
-    }
+    // Filter within the current page. Convex doesn't support full-text
+    // search in a regular query, so partial matching happens in memory.
+    const filtered = args.specialization
+      ? page.filter((d) => {
+          const term = args.specialization!.toLowerCase();
+          return (
+            d.profile?.specialization?.toLowerCase().includes(term) ||
+            d.profile?.fullName?.toLowerCase().includes(term)
+          );
+        })
+      : page;
 
-    return results;
+    // Preserve pagination metadata (isDone, continueCursor) and swap the
+    // page with the filtered results so usePaginatedQuery still works.
+    return { ...doctors, page: filtered };
   },
 });
