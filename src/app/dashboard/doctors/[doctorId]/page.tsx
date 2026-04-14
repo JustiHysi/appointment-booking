@@ -1,20 +1,26 @@
 "use client";
 
 import { useMutation, useQuery } from "convex/react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { api } from "../../../../../convex/_generated/api";
 import { Id } from "../../../../../convex/_generated/dataModel";
 import { groupByDate } from "../../../../lib/utils";
+import { Button } from "../../../../components/ui/button";
+import { Card } from "../../../../components/ui/card";
+import { Textarea, Label } from "../../../../components/ui/input";
 
 export default function DoctorDetailPage() {
   const { doctorId } = useParams<{ doctorId: string }>();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const typedDoctorId = doctorId as Id<"users">;
+  const intakeId = searchParams.get("intakeId") as Id<"healthIntake"> | null;
 
   const profile = useQuery(api.doctors.getDoctorProfile, { userId: typedDoctorId });
   const slots = useQuery(api.availability.getDoctorAvailability, { doctorId: typedDoctorId });
+  const intake = useQuery(api.intake.getHealthIntake, intakeId ? { intakeId } : "skip");
   const bookAppointment = useMutation(api.appointments.bookAppointment);
 
   const [reason, setReason] = useState("");
@@ -37,7 +43,11 @@ export default function DoctorDetailPage() {
     if (!selectedSlot) return;
     setSubmitting(true);
     try {
-      await bookAppointment({ slotId: selectedSlot, reason: reason.trim() || undefined });
+      await bookAppointment({
+        slotId: selectedSlot,
+        reason: (intake?.chiefComplaint ?? reason.trim()) || undefined,
+        intakeId: intakeId ?? undefined,
+      });
       toast.success("Appointment booked!");
       router.push("/dashboard/appointments");
     } catch (err) {
@@ -56,7 +66,7 @@ export default function DoctorDetailPage() {
         &larr; Back to doctors
       </button>
 
-      <div className="rounded-2xl bg-white p-6 shadow-md ring-1 ring-slate-200/60">
+      <Card>
         <div className="flex items-center gap-4">
           {profile?.imageUrl ? (
             <img src={profile.imageUrl} alt={profile.fullName} className="h-16 w-16 rounded-full object-cover" />
@@ -71,11 +81,25 @@ export default function DoctorDetailPage() {
           </div>
         </div>
         {profile?.bio && <p className="mt-4 text-slate-600">{profile.bio}</p>}
-      </div>
+      </Card>
+
+      {intake && (
+        <div className="mt-4 rounded-2xl bg-emerald-50 p-5 ring-1 ring-emerald-200">
+          <h3 className="text-sm font-semibold text-emerald-800">Health Intake Summary</h3>
+          <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+            <p className="text-slate-600">Complaint: <span className="text-slate-900">{intake.chiefComplaint}</span></p>
+            <p className="text-slate-600">Pain: <span className="font-bold text-slate-900">{intake.painLevel}/10</span></p>
+            {intake.conditions.length > 0 && (
+              <p className="col-span-2 text-slate-600">
+                Conditions: <span className="text-slate-900">{intake.conditions.join(", ")}</span>
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="mt-6">
         <h2 className="text-lg font-semibold text-slate-900">Available Slots</h2>
-
         {dates.length === 0 ? (
           <p className="mt-4 text-slate-500">No available slots at the moment.</p>
         ) : (
@@ -105,34 +129,27 @@ export default function DoctorDetailPage() {
       </div>
 
       {selectedSlot && (
-        <div className="mt-6 rounded-2xl bg-white p-6 shadow-md ring-1 ring-slate-200/60">
+        <Card className="mt-6">
           <h3 className="text-lg font-semibold text-slate-900">Book Appointment</h3>
-          <div className="mt-4">
-            <label className="block text-sm font-medium text-slate-700">Reason for visit (optional)</label>
-            <textarea
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              rows={3}
-              className="mt-1.5 w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 transition-colors placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
-              placeholder="Describe your symptoms or reason..."
-            />
-          </div>
+          {!intakeId && (
+            <div className="mt-4">
+              <Label>Reason for visit (optional)</Label>
+              <Textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                rows={3}
+                placeholder="Describe your symptoms or reason..."
+                className="mt-1.5"
+              />
+            </div>
+          )}
           <div className="mt-4 flex gap-3">
-            <button
-              onClick={handleBook}
-              disabled={submitting}
-              className="rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-emerald-700 hover:shadow-md disabled:opacity-50"
-            >
+            <Button onClick={handleBook} disabled={submitting}>
               {submitting ? "Booking..." : "Confirm Booking"}
-            </button>
-            <button
-              onClick={() => setSelectedSlot(null)}
-              className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
-            >
-              Cancel
-            </button>
+            </Button>
+            <Button variant="secondary" onClick={() => setSelectedSlot(null)}>Cancel</Button>
           </div>
-        </div>
+        </Card>
       )}
     </div>
   );

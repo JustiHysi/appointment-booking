@@ -6,6 +6,9 @@ import { toast } from "sonner";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { STATUS_STYLES } from "../../../lib/utils";
+import { Button } from "../../../components/ui/button";
+import { Card } from "../../../components/ui/card";
+import { Input } from "../../../components/ui/input";
 
 export default function AppointmentsPage() {
   const user = useQuery(api.users.getCurrentUser);
@@ -67,7 +70,7 @@ export default function AppointmentsPage() {
       ) : (
         <div className="mt-6 space-y-4">
           {appointments.map((appt) => (
-            <div key={appt._id} className="rounded-2xl bg-white p-5 shadow-md ring-1 ring-slate-200/60">
+            <Card key={appt._id} className="!p-5">
               <div className="flex items-start justify-between">
                 <div>
                   <p className="font-medium text-slate-900">
@@ -83,38 +86,36 @@ export default function AppointmentsPage() {
 
               {isDoctor && appt.status === "pending" && (
                 <div className="mt-4 flex gap-2">
-                  <button onClick={() => handleStatusUpdate(appt._id, "confirmed")} className="rounded-xl bg-green-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-green-700">Confirm</button>
-                  <button onClick={() => handleStatusUpdate(appt._id, "rejected")} className="rounded-xl bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700">Reject</button>
+                  <Button onClick={() => handleStatusUpdate(appt._id, "confirmed")} className="!bg-green-600 hover:!bg-green-700">Confirm</Button>
+                  <Button onClick={() => handleStatusUpdate(appt._id, "rejected")} className="!bg-red-600 hover:!bg-red-700">Reject</Button>
                 </div>
               )}
 
               {isDoctor && appt.status === "confirmed" && (
                 <div className="mt-4 space-y-2">
-                  <button onClick={() => handleStatusUpdate(appt._id, "completed")} className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700">Mark Complete</button>
+                  <Button onClick={() => handleStatusUpdate(appt._id, "completed")}>Mark Complete</Button>
                   <div className="flex gap-2">
-                    <input
-                      type="text"
+                    <Input
                       value={notesMap[appt._id] ?? ""}
                       onChange={(e) => setNotesMap((prev) => ({ ...prev, [appt._id]: e.target.value }))}
                       placeholder="Add notes..."
-                      className="flex-1 rounded-xl border border-slate-300 bg-slate-50 px-4 py-2 text-sm text-slate-900 transition-colors placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
                     />
-                    <button onClick={() => handleAddNotes(appt._id)} className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50">Save</button>
+                    <Button variant="secondary" onClick={() => handleAddNotes(appt._id)}>Save</Button>
                   </div>
                 </div>
               )}
 
               {!isDoctor && (appt.status === "pending" || appt.status === "confirmed") && (
                 <div className="mt-4">
-                  <button onClick={() => handleStatusUpdate(appt._id, "cancelled")} className="rounded-xl border border-red-300 px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50">Cancel Appointment</button>
+                  <Button variant="danger" onClick={() => handleStatusUpdate(appt._id, "cancelled")}>Cancel Appointment</Button>
                 </div>
               )}
-            </div>
+            </Card>
           ))}
 
           {status === "CanLoadMore" && (
             <div className="flex justify-center pt-2">
-              <button onClick={() => loadMore(10)} className="rounded-xl border border-slate-300 px-6 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50">Load More</button>
+              <Button variant="secondary" onClick={() => loadMore(10)}>Load More</Button>
             </div>
           )}
           {status === "LoadingMore" && (

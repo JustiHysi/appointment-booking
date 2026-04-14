@@ -48,7 +48,10 @@ export default function DashboardPage() {
               <ActionLink href="/dashboard/profile">Edit Profile</ActionLink>
             </>
           ) : (
-            <ActionLink href="/dashboard/doctors" primary>Find a Doctor</ActionLink>
+            <>
+              <ActionLink href="/dashboard/intake" primary>Book Appointment</ActionLink>
+              <ActionLink href="/dashboard/doctors">Browse Doctors</ActionLink>
+            </>
           )}
           <ActionLink href="/dashboard/appointments">View Appointments</ActionLink>
         </div>

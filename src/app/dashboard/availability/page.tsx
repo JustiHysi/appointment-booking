@@ -6,6 +6,9 @@ import { toast } from "sonner";
 import { api } from "../../../../convex/_generated/api";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { groupByDate } from "../../../lib/utils";
+import { Button } from "../../../components/ui/button";
+import { Card } from "../../../components/ui/card";
+import { Input, Label } from "../../../components/ui/input";
 
 export default function AvailabilityPage() {
   const { results: slots, status, loadMore } = usePaginatedQuery(
@@ -66,33 +69,31 @@ export default function AvailabilityPage() {
       <h1 className="text-2xl font-bold text-slate-900">Manage Availability</h1>
       <p className="mt-1 text-sm text-slate-500">Add or remove your available time slots</p>
 
-      <form onSubmit={handleAdd} className="mt-6 rounded-2xl bg-white p-6 shadow-md ring-1 ring-slate-200/60">
-        <h2 className="text-lg font-semibold text-slate-900">Add New Slot</h2>
-        <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
-          {[
-            { label: "Date", type: "date", value: date, onChange: setDate },
-            { label: "Start Time", type: "time", value: startTime, onChange: setStartTime },
-            { label: "End Time", type: "time", value: endTime, onChange: setEndTime },
-          ].map((field) => (
-            <div key={field.label}>
-              <label className="block text-sm font-medium text-slate-700">{field.label}</label>
-              <input
-                type={field.type}
-                value={field.value}
-                onChange={(e) => field.onChange(e.target.value)}
-                required
-                className="mt-1.5 w-full rounded-xl border border-slate-300 bg-slate-50 px-4 py-2.5 text-sm text-slate-900 transition-colors focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500"
-              />
-            </div>
-          ))}
-        </div>
-        <button
-          type="submit"
-          disabled={submitting}
-          className="mt-4 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-emerald-700 hover:shadow-md disabled:opacity-50"
-        >
-          {submitting ? "Adding..." : "Add Slot"}
-        </button>
+      <form onSubmit={handleAdd} className="mt-6">
+        <Card>
+          <h2 className="text-lg font-semibold text-slate-900">Add New Slot</h2>
+          <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
+            {[
+              { label: "Date", type: "date", value: date, onChange: setDate },
+              { label: "Start Time", type: "time", value: startTime, onChange: setStartTime },
+              { label: "End Time", type: "time", value: endTime, onChange: setEndTime },
+            ].map((field) => (
+              <div key={field.label}>
+                <Label>{field.label}</Label>
+                <Input
+                  type={field.type}
+                  value={field.value}
+                  onChange={(e) => field.onChange(e.target.value)}
+                  required
+                  className="mt-1.5"
+                />
+              </div>
+            ))}
+          </div>
+          <Button type="submit" disabled={submitting} className="mt-4">
+            {submitting ? "Adding..." : "Add Slot"}
+          </Button>
+        </Card>
       </form>
 
       <div className="mt-8">
@@ -107,10 +108,7 @@ export default function AvailabilityPage() {
                 <h3 className="text-sm font-medium text-slate-700">{d}</h3>
                 <div className="mt-2 space-y-2">
                   {byDate[d].map((slot) => (
-                    <div
-                      key={slot._id}
-                      className="flex items-center justify-between rounded-2xl bg-white p-4 shadow-md ring-1 ring-slate-200/60"
-                    >
+                    <Card key={slot._id} className="flex items-center justify-between !p-4">
                       <div className="flex items-center gap-3">
                         <span className="text-sm font-medium text-slate-900">
                           {slot.startTime} - {slot.endTime}
@@ -129,7 +127,7 @@ export default function AvailabilityPage() {
                           Remove
                         </button>
                       )}
-                    </div>
+                    </Card>
                   ))}
                 </div>
               </div>
@@ -137,12 +135,7 @@ export default function AvailabilityPage() {
 
             {status === "CanLoadMore" && (
               <div className="flex justify-center pt-2">
-                <button
-                  onClick={() => loadMore(15)}
-                  className="rounded-xl border border-slate-300 px-6 py-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
-                >
-                  Load More
-                </button>
+                <Button variant="secondary" onClick={() => loadMore(15)}>Load More</Button>
               </div>
             )}
             {status === "LoadingMore" && (

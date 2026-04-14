@@ -69,6 +69,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       ]
     : [
         { href: "/dashboard", label: "Dashboard" },
+        { href: "/dashboard/intake", label: "Book Appointment" },
         { href: "/dashboard/doctors", label: "Find Doctors" },
         { href: "/dashboard/appointments", label: "My Appointments" },
       ];

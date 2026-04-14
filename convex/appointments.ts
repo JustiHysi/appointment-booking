@@ -7,6 +7,7 @@ export const bookAppointment = mutation({
   args: {
     slotId: v.id("availabilitySlots"),
     reason: v.optional(v.string()),
+    intakeId: v.optional(v.id("healthIntake")),
   },
   handler: async (ctx, args) => {
     const user = await requireRole(ctx, "patient");
@@ -15,9 +16,16 @@ export const bookAppointment = mutation({
     if (!slot) throw new Error("Slot not found");
     if (slot.isBooked) throw new Error("Slot is already booked");
 
+    if (args.intakeId) {
+      const intake = await ctx.db.get(args.intakeId);
+      if (!intake || intake.patientId !== user._id) {
+        throw new Error("Invalid intake");
+      }
+    }
+
     await ctx.db.patch(slot._id, { isBooked: true });
 
-    return await ctx.db.insert("appointments", {
+    const appointmentId = await ctx.db.insert("appointments", {
       patientId: user._id,
       doctorId: slot.doctorId,
       slotId: slot._id,
@@ -26,7 +34,14 @@ export const bookAppointment = mutation({
       endTime: slot.endTime,
       status: "pending",
       reason: args.reason,
+      intakeId: args.intakeId,
     });
+
+    if (args.intakeId) {
+      await ctx.db.patch(args.intakeId, { appointmentId });
+    }
+
+    return appointmentId;
   },
 });
 

@@ -2,11 +2,16 @@
 
 import { usePaginatedQuery } from "convex/react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { api } from "../../../../convex/_generated/api";
 
 export default function DoctorsPage() {
-  const [search, setSearch] = useState("");
+  const searchParams = useSearchParams();
+  const intakeId = searchParams.get("intakeId");
+  const initialSpecialty = searchParams.get("specialty") ?? "";
+
+  const [search, setSearch] = useState(initialSpecialty);
   const { results: doctors, status, loadMore } = usePaginatedQuery(
     api.doctors.listDoctors,
     { specialization: search || undefined },
@@ -24,12 +29,25 @@ export default function DoctorsPage() {
     );
   }
 
+  const doctorHref = (doctorId: string) =>
+    intakeId
+      ? `/dashboard/doctors/${doctorId}?intakeId=${intakeId}`
+      : `/dashboard/doctors/${doctorId}`;
+
   return (
     <div>
       <h1 className="text-2xl font-bold text-slate-900">Find a Doctor</h1>
       <p className="mt-1 text-sm text-slate-500">
         Browse available doctors and book an appointment
       </p>
+
+      {intakeId && (
+        <div className="mt-4 rounded-2xl bg-emerald-50 px-5 py-3 ring-1 ring-emerald-200">
+          <p className="text-sm font-medium text-emerald-700">
+            Your health intake is ready. Select a doctor below to continue booking.
+          </p>
+        </div>
+      )}
 
       <div className="mt-4">
         <input
@@ -51,7 +69,7 @@ export default function DoctorsPage() {
             {doctors.map((doctor) => (
               <Link
                 key={doctor._id}
-                href={`/dashboard/doctors/${doctor._id}`}
+                href={doctorHref(doctor._id)}
                 className="rounded-2xl bg-white p-5 shadow-md ring-1 ring-slate-200/60 transition-all hover:shadow-lg"
               >
                 <div className="flex items-center gap-3">
