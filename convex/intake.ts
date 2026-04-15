@@ -11,6 +11,7 @@ export const createHealthIntake = mutation({
     allergies: v.string(),
     conditions: v.array(v.string()),
     documents: v.array(v.id("_storage")),
+    ocrText: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const user = await requireRole(ctx, "patient");
@@ -31,6 +32,7 @@ export const createHealthIntake = mutation({
       allergies: args.allergies.trim(),
       conditions: args.conditions,
       documents: args.documents,
+      ocrText: args.ocrText,
     });
   },
 });
@@ -49,6 +51,20 @@ export const getHealthIntake = query({
     );
 
     return { ...intake, documentUrls };
+  },
+});
+
+export const setOcrText = mutation({
+  args: {
+    intakeId: v.id("healthIntake"),
+    ocrText: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireRole(ctx, "patient");
+    const intake = await ctx.db.get(args.intakeId);
+    if (!intake) throw new Error("Intake not found");
+    if (intake.patientId !== user._id) throw new Error("Not your intake");
+    await ctx.db.patch(args.intakeId, { ocrText: args.ocrText });
   },
 });
 

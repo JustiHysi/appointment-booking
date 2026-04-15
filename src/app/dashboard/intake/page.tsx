@@ -39,6 +39,8 @@ interface FormData {
   conditions: string[];
   docIds: Id<"_storage">[];
   docNames: string[];
+  docFiles: File[];
+  ocrText: string;
 }
 
 export default function IntakePage() {
@@ -48,7 +50,10 @@ export default function IntakePage() {
   const [form, setForm] = useState<FormData>({
     specialty: "", chiefComplaint: "", symptomDuration: "", painLevel: 5,
     medications: "", allergies: "", conditions: [], docIds: [], docNames: [],
+    docFiles: [], ocrText: "",
   });
+
+  const [ocrProcessing, setOcrProcessing] = useState(false);
 
   const createIntake = useMutation(api.intake.createHealthIntake);
   const generateUploadUrl = useMutation(api.doctors.generateUploadUrl);
@@ -60,6 +65,84 @@ export default function IntakePage() {
     step === 1 ? form.chiefComplaint.trim().length > 0 && form.symptomDuration !== "" :
     true;
 
+  async function advanceFromDocuments() {
+    const images = form.docFiles.filter((f) => f.type.startsWith("image/"));
+    const pdfs = form.docFiles.filter((f) => f.type === "application/pdf");
+
+    if (images.length === 0 && pdfs.length === 0) { setStep(3); return; }
+
+    setOcrProcessing(true);
+    const texts: string[] = [];
+    try {
+      if (images.length > 0) {
+        const { createWorker } = await import("tesseract.js");
+        const worker = await createWorker("eng");
+        for (const file of images) {
+          const { data } = await worker.recognize(file);
+          if (data.text.trim()) texts.push(data.text.trim());
+        }
+        await worker.terminate();
+      }
+
+      if (pdfs.length > 0) {
+        const pdfjsLib = await import("pdfjs-dist");
+        pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+
+        // Lazy-init Tesseract worker for scanned PDFs (reuse if already created above)
+        let ocrWorker: Awaited<ReturnType<typeof import("tesseract.js")["createWorker"]>> | null = null;
+
+        for (const file of pdfs) {
+          const buffer = await file.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+
+          for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+
+            // Try text layer first (digital PDFs)
+            const content = await page.getTextContent();
+            const digitalText = content.items
+              .map((item) => ("str" in item ? item.str : ""))
+              .join(" ")
+              .trim();
+
+            if (digitalText.length > 20) {
+              texts.push(digitalText);
+              continue;
+            }
+
+            // Scanned PDF — render page to canvas and OCR it
+            const viewport = page.getViewport({ scale: 2 });
+            const canvas = document.createElement("canvas");
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            const ctx = canvas.getContext("2d")!;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            await page.render({ canvasContext: ctx, viewport } as any).promise;
+
+            if (!ocrWorker) {
+              const { createWorker } = await import("tesseract.js");
+              ocrWorker = await createWorker("eng");
+            }
+            const { data } = await ocrWorker.recognize(canvas);
+            if (data.text.trim()) texts.push(data.text.trim());
+          }
+        }
+
+        if (ocrWorker) await ocrWorker.terminate();
+      }
+
+      const ocrText = texts.join("\n\n---\n\n");
+      set({ ocrText });
+      if (ocrText) toast.success("Text extraction complete!");
+      else toast.info("No text found in uploaded documents");
+    } catch {
+      toast.error("Text extraction failed — you can still continue");
+    } finally {
+      setOcrProcessing(false);
+      setStep(3);
+    }
+  }
+
   async function handleSubmit() {
     setSubmitting(true);
     try {
@@ -67,6 +150,7 @@ export default function IntakePage() {
         chiefComplaint: form.chiefComplaint, symptomDuration: form.symptomDuration,
         painLevel: form.painLevel, medications: form.medications, allergies: form.allergies,
         conditions: form.conditions, documents: form.docIds,
+        ocrText: form.ocrText || undefined,
       });
       toast.success("Health intake saved!");
       router.push(`/dashboard/doctors?specialty=${encodeURIComponent(form.specialty)}&intakeId=${id}`);
@@ -95,8 +179,11 @@ export default function IntakePage() {
         {step > 0 && step < 4 && <Button variant="secondary" onClick={() => setStep(step - 1)}>Back</Button>}
         <div className="ml-auto">
           {step < 3 && (
-            <Button onClick={() => setStep(step + 1)} disabled={!canAdvance}>
-              {step === 2 && form.docIds.length === 0 ? "Skip" : "Next"}
+            <Button
+              onClick={step === 2 ? advanceFromDocuments : () => setStep(step + 1)}
+              disabled={!canAdvance || ocrProcessing}
+            >
+              {ocrProcessing ? "Extracting text..." : step === 2 && form.docIds.length === 0 ? "Skip" : "Next"}
             </Button>
           )}
           {step === 3 && (
@@ -210,6 +297,7 @@ function DocUpload({ form, set, generateUrl }: { form: FormData; set: (u: Partia
     setUploading(true);
     const ids = [...form.docIds];
     const names = [...form.docNames];
+    const rawFiles = [...form.docFiles];
     try {
       await Promise.all(Array.from(files).map(async (f) => {
         if (!f.type.startsWith("image/") && f.type !== "application/pdf") { toast.error(`${f.name}: Only images and PDFs`); return; }
@@ -217,9 +305,9 @@ function DocUpload({ form, set, generateUrl }: { form: FormData; set: (u: Partia
         const url = await generateUrl();
         const res = await fetch(url, { method: "POST", headers: { "Content-Type": f.type }, body: f });
         const { storageId } = await res.json();
-        ids.push(storageId); names.push(f.name);
+        ids.push(storageId); names.push(f.name); rawFiles.push(f);
       }));
-      set({ docIds: ids, docNames: names });
+      set({ docIds: ids, docNames: names, docFiles: rawFiles });
       if (ids.length > form.docIds.length) toast.success("Files uploaded!");
     } catch { toast.error("Upload failed"); }
     finally { setUploading(false); }
@@ -241,7 +329,7 @@ function DocUpload({ form, set, generateUrl }: { form: FormData; set: (u: Partia
           {form.docNames.map((name, i) => (
             <div key={i} className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-2.5">
               <span className="truncate text-sm text-slate-700">{name}</span>
-              <button onClick={() => set({ docIds: form.docIds.filter((_, j) => j !== i), docNames: form.docNames.filter((_, j) => j !== i) })}
+              <button onClick={() => set({ docIds: form.docIds.filter((_, j) => j !== i), docNames: form.docNames.filter((_, j) => j !== i), docFiles: form.docFiles.filter((_, j) => j !== i) })}
                 className="text-sm font-medium text-red-600 hover:text-red-700">Remove</button>
             </div>
           ))}
@@ -289,8 +377,16 @@ function Review({ form, onEdit }: { form: FormData; onEdit: (step: number) => vo
           <Field label="Documents" value={`${form.docIds.length} file(s) uploaded`} />
         </div>
       </Card>
+
+      {form.ocrText && (
+        <Card>
+          <h3 className="text-sm font-semibold text-slate-900">Extracted Text (OCR)</h3>
+          <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{form.ocrText}</p>
+        </Card>
+      )}
+
       <div className="rounded-2xl bg-slate-100 p-5 ring-1 ring-slate-200/60">
-        <p className="text-sm font-medium text-slate-500">AI Analysis will be available after processing your documents.</p>
+        <p className="text-sm font-medium text-slate-500">AI Analysis will be available after processing.</p>
       </div>
     </div>
   );
