@@ -68,6 +68,27 @@ export const setOcrText = mutation({
   },
 });
 
+export const setAiAnalysis = mutation({
+  args: {
+    intakeId: v.id("healthIntake"),
+    aiAnalysis: v.object({
+      suggestedSpecialty: v.string(),
+      urgencyLevel: v.string(),
+      summary: v.string(),
+      possibleConditions: v.array(v.string()),
+      recommendedTests: v.array(v.string()),
+      flags: v.array(v.string()),
+    }),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireRole(ctx, "patient");
+    const intake = await ctx.db.get(args.intakeId);
+    if (!intake) throw new Error("Intake not found");
+    if (intake.patientId !== user._id) throw new Error("Not your intake");
+    await ctx.db.patch(args.intakeId, { aiAnalysis: args.aiAnalysis });
+  },
+});
+
 export const updateHealthIntake = mutation({
   args: {
     intakeId: v.id("healthIntake"),

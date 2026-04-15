@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation } from "convex/react";
+import { useAction, useMutation } from "convex/react";
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
@@ -54,9 +54,16 @@ export default function IntakePage() {
   });
 
   const [ocrProcessing, setOcrProcessing] = useState(false);
+  const [aiAnalysis, setAiAnalysis] = useState<{
+    suggestedSpecialty: string; urgencyLevel: string; summary: string;
+    possibleConditions: string[]; recommendedTests: string[]; flags: string[];
+  } | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
 
   const createIntake = useMutation(api.intake.createHealthIntake);
+  const saveAiAnalysis = useMutation(api.intake.setAiAnalysis);
   const generateUploadUrl = useMutation(api.doctors.generateUploadUrl);
+  const analyzeIntake = useAction(api.ai.analyzeIntake);
 
   const set = (u: Partial<FormData>) => setForm((p) => ({ ...p, ...u }));
 
@@ -140,6 +147,31 @@ export default function IntakePage() {
     } finally {
       setOcrProcessing(false);
       setStep(3);
+      runAiAnalysis(texts.join("\n\n---\n\n"));
+    }
+  }
+
+  async function runAiAnalysis(extractedText: string) {
+    setAiLoading(true);
+    try {
+      const result = await analyzeIntake({
+        chiefComplaint: form.chiefComplaint,
+        symptomDuration: form.symptomDuration,
+        painLevel: form.painLevel,
+        medications: form.medications,
+        allergies: form.allergies,
+        conditions: form.conditions,
+        ocrText: extractedText || undefined,
+      });
+      setAiAnalysis(result);
+      if (result.suggestedSpecialty) {
+        set({ specialty: result.suggestedSpecialty });
+      }
+      toast.success("AI analysis complete!");
+    } catch {
+      toast.error("AI analysis failed — you can still continue manually");
+    } finally {
+      setAiLoading(false);
     }
   }
 
@@ -152,6 +184,9 @@ export default function IntakePage() {
         conditions: form.conditions, documents: form.docIds,
         ocrText: form.ocrText || undefined,
       });
+      if (aiAnalysis) {
+        await saveAiAnalysis({ intakeId: id, aiAnalysis });
+      }
       toast.success("Health intake saved!");
       router.push(`/dashboard/doctors?specialty=${encodeURIComponent(form.specialty)}&intakeId=${id}`);
     } catch (err) {
@@ -172,7 +207,7 @@ export default function IntakePage() {
         {step === 0 && <SpecialtyPicker value={form.specialty} onChange={(v) => set({ specialty: v })} />}
         {step === 1 && <HealthForm form={form} set={set} />}
         {step === 2 && <DocUpload form={form} set={set} generateUrl={generateUploadUrl} />}
-        {step === 3 && <Review form={form} onEdit={setStep} />}
+        {step === 3 && <Review form={form} onEdit={setStep} aiAnalysis={aiAnalysis} aiLoading={aiLoading} />}
       </div>
 
       <div className="mt-6 flex justify-between">
@@ -339,7 +374,9 @@ function DocUpload({ form, set, generateUrl }: { form: FormData; set: (u: Partia
   );
 }
 
-function Review({ form, onEdit }: { form: FormData; onEdit: (step: number) => void }) {
+type AiResult = { suggestedSpecialty: string; urgencyLevel: string; summary: string; possibleConditions: string[]; recommendedTests: string[]; flags: string[] };
+
+function Review({ form, onEdit, aiAnalysis, aiLoading }: { form: FormData; onEdit: (step: number) => void; aiAnalysis: AiResult | null; aiLoading: boolean }) {
   const painColor = form.painLevel <= 3 ? "bg-green-500" : form.painLevel <= 6 ? "bg-yellow-500" : "bg-red-500";
 
   return (
@@ -385,9 +422,63 @@ function Review({ form, onEdit }: { form: FormData; onEdit: (step: number) => vo
         </Card>
       )}
 
-      <div className="rounded-2xl bg-slate-100 p-5 ring-1 ring-slate-200/60">
-        <p className="text-sm font-medium text-slate-500">AI Analysis will be available after processing.</p>
-      </div>
+      {aiLoading && (
+        <Card>
+          <div className="flex items-center gap-3">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
+            <p className="text-sm font-medium text-slate-600">AI is analyzing your health data...</p>
+          </div>
+        </Card>
+      )}
+
+      {aiAnalysis && (
+        <Card>
+          <h3 className="text-sm font-semibold text-slate-900">AI Analysis</h3>
+          <div className="mt-3 space-y-3">
+            <div className="flex gap-3">
+              <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                aiAnalysis.urgencyLevel === "emergency" ? "bg-red-100 text-red-700" :
+                aiAnalysis.urgencyLevel === "urgent" ? "bg-yellow-100 text-yellow-700" :
+                "bg-green-100 text-green-700"
+              }`}>{aiAnalysis.urgencyLevel}</span>
+              <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
+                {aiAnalysis.suggestedSpecialty}
+              </span>
+            </div>
+            <p className="text-sm text-slate-700">{aiAnalysis.summary}</p>
+            {aiAnalysis.possibleConditions.length > 0 && (
+              <div>
+                <p className="text-xs font-medium uppercase text-slate-400">Possible Conditions</p>
+                <ul className="mt-1 list-inside list-disc text-sm text-slate-600">
+                  {aiAnalysis.possibleConditions.map((c) => <li key={c}>{c}</li>)}
+                </ul>
+              </div>
+            )}
+            {aiAnalysis.recommendedTests.length > 0 && (
+              <div>
+                <p className="text-xs font-medium uppercase text-slate-400">Recommended Tests</p>
+                <ul className="mt-1 list-inside list-disc text-sm text-slate-600">
+                  {aiAnalysis.recommendedTests.map((t) => <li key={t}>{t}</li>)}
+                </ul>
+              </div>
+            )}
+            {aiAnalysis.flags.length > 0 && (
+              <div>
+                <p className="text-xs font-medium uppercase text-red-400">Flags</p>
+                <ul className="mt-1 list-inside list-disc text-sm text-red-600">
+                  {aiAnalysis.flags.map((f) => <li key={f}>{f}</li>)}
+                </ul>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
+
+      {!aiAnalysis && !aiLoading && (
+        <div className="rounded-2xl bg-slate-100 p-5 ring-1 ring-slate-200/60">
+          <p className="text-sm font-medium text-slate-500">AI analysis unavailable. You can still continue.</p>
+        </div>
+      )}
     </div>
   );
 }
