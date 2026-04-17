@@ -37,6 +37,17 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     }
   }, [user, profile, pathname, router]);
 
+  // Patient onboarding: redirect if no address (needed for geo-routed referrals)
+  useEffect(() => {
+    if (
+      user?.role === "patient" &&
+      !user.address &&
+      pathname !== "/dashboard/profile"
+    ) {
+      router.push("/dashboard/profile");
+    }
+  }, [user, pathname, router]);
+
   // Close sidebar on route change (mobile)
   useEffect(() => {
     setSidebarOpen(false);
@@ -72,6 +83,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         { href: "/dashboard/intake", label: "Book Appointment" },
         { href: "/dashboard/doctors", label: "Find Doctors" },
         { href: "/dashboard/appointments", label: "My Appointments" },
+        { href: "/dashboard/profile", label: "My Profile" },
       ];
 
   async function handleSignOut() {

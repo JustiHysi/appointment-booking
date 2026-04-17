@@ -16,6 +16,7 @@ import type * as doctors from "../doctors.js";
 import type * as helpers from "../helpers.js";
 import type * as http from "../http.js";
 import type * as intake from "../intake.js";
+import type * as partnerLocations from "../partnerLocations.js";
 import type * as seed from "../seed.js";
 import type * as users from "../users.js";
 
@@ -34,6 +35,7 @@ declare const fullApi: ApiFromModules<{
   helpers: typeof helpers;
   http: typeof http;
   intake: typeof intake;
+  partnerLocations: typeof partnerLocations;
   seed: typeof seed;
   users: typeof users;
 }>;
