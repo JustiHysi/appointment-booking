@@ -77,12 +77,14 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         { href: "/dashboard/profile", label: "My Profile" },
         { href: "/dashboard/availability", label: "Availability" },
         { href: "/dashboard/appointments", label: "Appointments" },
+        { href: "/dashboard/referrals", label: "Referrals" },
       ]
     : [
         { href: "/dashboard", label: "Dashboard" },
         { href: "/dashboard/intake", label: "Book Appointment" },
         { href: "/dashboard/doctors", label: "Find Doctors" },
         { href: "/dashboard/appointments", label: "My Appointments" },
+        { href: "/dashboard/referrals", label: "My Referrals" },
         { href: "/dashboard/profile", label: "My Profile" },
       ];
 
