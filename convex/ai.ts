@@ -2,39 +2,49 @@
 
 import { v } from "convex/values";
 import { action } from "./_generated/server";
-import { GoogleGenerativeAI, SchemaType, type ResponseSchema } from "@google/generative-ai";
+import OpenAI from "openai";
 
-const analysisSchema: ResponseSchema = {
-  type: SchemaType.OBJECT,
+// OpenRouter is OpenAI-compatible — we use the same SDK with a different baseURL.
+// Model choice: gpt-4o-mini via OpenRouter supports structured JSON output reliably.
+const MODEL = "openai/gpt-4o-mini";
+
+const analysisJsonSchema = {
+  type: "object",
   properties: {
-    suggestedSpecialty: { type: SchemaType.STRING, description: "Most relevant medical specialty" },
+    suggestedSpecialty: {
+      type: "string",
+      description: "Most relevant medical specialty from: General Practice, Cardiology, Dermatology, Neurology, Orthopedics, Pediatrics, Psychiatry, Ophthalmology, ENT, Other",
+    },
     urgencyLevel: {
-      type: SchemaType.STRING,
-      format: "enum",
+      type: "string",
       enum: ["routine", "urgent", "emergency"],
       description: "How urgently the patient should be seen",
     },
-    summary: { type: SchemaType.STRING, description: "2-3 sentence clinical summary" },
+    summary: {
+      type: "string",
+      description: "2-3 sentence clinical summary for the doctor",
+    },
     possibleConditions: {
-      type: SchemaType.ARRAY,
-      items: { type: SchemaType.STRING },
-      description: "Top 3-5 possible conditions based on symptoms",
+      type: "array",
+      items: { type: "string" },
+      description: "Top 3-5 possible conditions ranked by likelihood",
     },
     recommendedTests: {
-      type: SchemaType.ARRAY,
-      items: { type: SchemaType.STRING },
+      type: "array",
+      items: { type: "string" },
       description: "Recommended diagnostic tests or procedures",
     },
     flags: {
-      type: SchemaType.ARRAY,
-      items: { type: SchemaType.STRING },
-      description: "Red flags or warnings for the doctor to note",
+      type: "array",
+      items: { type: "string" },
+      description: "Red flags, drug interactions, or urgent concerns for the doctor",
     },
   },
   required: [
     "suggestedSpecialty", "urgencyLevel", "summary",
     "possibleConditions", "recommendedTests", "flags",
   ],
+  additionalProperties: false,
 };
 
 export const analyzeIntake = action({
@@ -48,13 +58,9 @@ export const analyzeIntake = action({
     ocrText: v.optional(v.string()),
   },
   handler: async (_ctx, args) => {
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-      generationConfig: {
-        responseMimeType: "application/json",
-        responseSchema: analysisSchema,
-      },
+    const client = new OpenAI({
+      apiKey: process.env.OPENROUTER_API_KEY,
+      baseURL: "https://openrouter.ai/api/v1",
     });
 
     const prompt = [
@@ -79,11 +85,23 @@ export const analyzeIntake = action({
       "6. For `flags`: List any red flags, drug interaction risks (considering current medications + allergies), or urgent concerns the doctor should be aware of. Return an empty array if none.",
     ].join("\n");
 
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
-    if (!text) throw new Error("No response from AI");
+    const response = await client.chat.completions.create({
+      model: MODEL,
+      messages: [{ role: "user", content: prompt }],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "intake_analysis",
+          strict: true,
+          schema: analysisJsonSchema,
+        },
+      },
+    });
 
-    return JSON.parse(text) as {
+    const content = response.choices[0]?.message?.content;
+    if (!content) throw new Error("No response from AI");
+
+    return JSON.parse(content) as {
       suggestedSpecialty: string;
       urgencyLevel: string;
       summary: string;
