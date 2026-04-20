@@ -17,6 +17,7 @@ import type * as helpers from "../helpers.js";
 import type * as http from "../http.js";
 import type * as intake from "../intake.js";
 import type * as partnerLocations from "../partnerLocations.js";
+import type * as passwordReset from "../passwordReset.js";
 import type * as referrals from "../referrals.js";
 import type * as seed from "../seed.js";
 import type * as users from "../users.js";
@@ -37,6 +38,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   intake: typeof intake;
   partnerLocations: typeof partnerLocations;
+  passwordReset: typeof passwordReset;
   referrals: typeof referrals;
   seed: typeof seed;
   users: typeof users;
