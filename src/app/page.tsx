@@ -49,7 +49,10 @@ export default function Home() {
 
     try {
       if (mode === "signUp") {
-        if (!name.trim()) throw new Error("Name is required");
+        if (!name.trim()) {
+          showError("Name is required");
+          return;
+        }
         await signIn("password", { flow: "signUp", email, password, name, role });
         toast.success("Account created!");
         router.push("/dashboard");
@@ -62,7 +65,10 @@ export default function Home() {
         toast.success("Check your email for the reset code");
         switchMode("resetVerify");
       } else if (mode === "resetVerify") {
-        if (newPassword.length < 8) throw new Error("New password must be at least 8 characters");
+        if (newPassword.length < 8) {
+          showError("New password must be at least 8 characters");
+          return;
+        }
         await signIn("password", {
           email,
           code,
@@ -73,17 +79,15 @@ export default function Home() {
         router.push("/dashboard");
       }
     } catch (err) {
-      const fallback =
-        mode === "signUp" ? "Failed to create account. Email may already be in use."
-          : mode === "signIn" ? "Invalid email or password."
-            : mode === "resetRequest" ? "Could not send reset email. Check the address and try again."
-              : "Invalid or expired code.";
-      const msg = err instanceof Error && err.message !== "Failed" ? err.message : fallback;
-      setError(msg);
-      toast.error(msg);
+      showError(friendlyErrorMessage(mode, err));
     } finally {
       setSubmitting(false);
     }
+  }
+
+  function showError(msg: string) {
+    setError(msg);
+    toast.error(msg);
   }
 
   const titles: Record<Mode, { title: string; subtitle: string }> = {
@@ -213,6 +217,36 @@ export default function Home() {
       </div>
     </div>
   );
+}
+
+function friendlyErrorMessage(mode: Mode, err: unknown): string {
+  const raw = err instanceof Error ? err.message : "";
+
+  // Detect specific Convex Auth errors by substring match on the raw stack
+  if (raw.includes("InvalidAccountId")) {
+    return "No account found with that email.";
+  }
+  if (raw.includes("InvalidSecret")) {
+    return "The code is invalid or has expired.";
+  }
+  if (raw.includes("TooManyFailedAttempts")) {
+    return "Too many attempts. Please try again in a few minutes.";
+  }
+  if (raw.includes("Password is too short")) {
+    return "Password must be at least 8 characters.";
+  }
+
+  // Generic fallback per flow
+  switch (mode) {
+    case "signUp":
+      return "Could not create account. The email may already be registered.";
+    case "signIn":
+      return "Invalid email or password.";
+    case "resetRequest":
+      return "Could not send reset email. Please check the address and try again.";
+    case "resetVerify":
+      return "Invalid or expired code. Please try again.";
+  }
 }
 
 const inputClass =
