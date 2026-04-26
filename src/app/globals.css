@@ -17,3 +17,18 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Keep Leaflet map stacking context below sidebar (z-50) and overlay (z-40).
+   Force an isolated stacking context on the container, then cap all internal
+   panes and controls so nothing can break out. */
+.leaflet-container {
+  position: relative;
+  isolation: isolate;
+  z-index: 0;
+}
+.leaflet-pane,
+.leaflet-top,
+.leaflet-bottom,
+.leaflet-control {
+  z-index: 1 !important;
+}

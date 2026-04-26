@@ -60,7 +60,7 @@ export default function IntakePage() {
   } | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
 
-  const createIntake = useMutation(api.intake.createHealthIntake);
+  const createIntake = useMutation(api.intake.createHealthIntake);      
   const saveAiAnalysis = useMutation(api.intake.setAiAnalysis);
   const generateUploadUrl = useMutation(api.doctors.generateUploadUrl);
   const analyzeIntake = useAction(api.ai.analyzeIntake);
