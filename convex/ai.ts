@@ -181,3 +181,121 @@ Now analyze the actual intake below and return JSON matching the same pattern: s
     };
   },
 });
+
+// --- Structured field extraction from raw OCR text ---
+
+const extractedFieldsSchema = {
+  type: "object",
+  properties: {
+    patientInfo: {
+      type: "object",
+      properties: {
+        name: { type: ["string", "null"], description: "Patient full name if found in the document, otherwise null" },
+        dateOfBirth: { type: ["string", "null"], description: "Date of birth if found, in any format, otherwise null" },
+        mrn: { type: ["string", "null"], description: "Medical record number if found, otherwise null" },
+      },
+      required: ["name", "dateOfBirth", "mrn"],
+      additionalProperties: false,
+    },
+    labResults: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Test name (e.g. Hemoglobin, Glucose)" },
+          value: { type: "string", description: "Measured value as a string" },
+          unit: { type: ["string", "null"], description: "Unit of measure (e.g. g/dL, mg/dL), or null" },
+          referenceRange: { type: ["string", "null"], description: "Normal range if reported, or null" },
+        },
+        required: ["name", "value", "unit", "referenceRange"],
+        additionalProperties: false,
+      },
+      description: "Every lab/test result mentioned. Empty array if none.",
+    },
+    medicationsMentioned: {
+      type: "array",
+      items: { type: "string" },
+      description: "Medications referenced anywhere in the document (with dosage if available, e.g. 'Lisinopril 10mg'). Empty array if none.",
+    },
+    diagnoses: {
+      type: "array",
+      items: { type: "string" },
+      description: "Diagnoses, impressions, or findings mentioned. Empty array if none.",
+    },
+    notes: {
+      type: "string",
+      description: "Any free-text clinical notes or remarks the document contains. Empty string if none.",
+    },
+  },
+  required: ["patientInfo", "labResults", "medicationsMentioned", "diagnoses", "notes"],
+  additionalProperties: false,
+};
+
+export const extractDocumentFields = action({
+  args: { ocrText: v.string() },
+  handler: async (_ctx, args) => {
+    const client = new OpenAI({
+      apiKey: process.env.OPENROUTER_API_KEY,
+      baseURL: "https://openrouter.ai/api/v1",
+    });
+
+    const systemPrompt = `You are a medical record parser. You receive raw OCR text from a patient's uploaded medical document (lab report, prescription, consultation note, imaging report, etc.) and extract structured fields.
+
+RULES:
+1. Only extract what is actually present in the text. If a field isn't there, return null (for objects) or empty array/string.
+2. Do NOT invent or infer values not present in the text.
+3. For lab results: capture every numeric measurement with its unit and reference range when given.
+4. For medications: include dosage if mentioned (e.g. "Lisinopril 10mg daily").
+5. Strip OCR noise (random characters, broken line breaks) when constructing values, but never fabricate.
+
+Return strictly the JSON shape requested.`;
+
+    const userPrompt = `OCR text from medical document:\n\n${args.ocrText}\n\nExtract structured fields.`;
+
+    const response = await client.chat.completions.create({
+      model: MODEL,
+      temperature: 0,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "document_extraction",
+          strict: true,
+          schema: extractedFieldsSchema,
+        },
+      },
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) throw new Error("No response from AI");
+
+    // Convert nulls to undefined to match Convex validators (v.optional doesn't accept null)
+    const parsed = JSON.parse(content) as {
+      patientInfo: { name: string | null; dateOfBirth: string | null; mrn: string | null };
+      labResults: Array<{ name: string; value: string; unit: string | null; referenceRange: string | null }>;
+      medicationsMentioned: string[];
+      diagnoses: string[];
+      notes: string;
+    };
+
+    return {
+      patientInfo: {
+        name: parsed.patientInfo.name ?? undefined,
+        dateOfBirth: parsed.patientInfo.dateOfBirth ?? undefined,
+        mrn: parsed.patientInfo.mrn ?? undefined,
+      },
+      labResults: parsed.labResults.map((r) => ({
+        name: r.name,
+        value: r.value,
+        unit: r.unit ?? undefined,
+        referenceRange: r.referenceRange ?? undefined,
+      })),
+      medicationsMentioned: parsed.medicationsMentioned,
+      diagnoses: parsed.diagnoses,
+      notes: parsed.notes,
+    };
+  },
+});

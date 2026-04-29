@@ -89,6 +89,37 @@ export const setAiAnalysis = mutation({
   },
 });
 
+export const setExtractedFields = mutation({
+  args: {
+    intakeId: v.id("healthIntake"),
+    extractedFields: v.object({
+      patientInfo: v.object({
+        name: v.optional(v.string()),
+        dateOfBirth: v.optional(v.string()),
+        mrn: v.optional(v.string()),
+      }),
+      labResults: v.array(
+        v.object({
+          name: v.string(),
+          value: v.string(),
+          unit: v.optional(v.string()),
+          referenceRange: v.optional(v.string()),
+        }),
+      ),
+      medicationsMentioned: v.array(v.string()),
+      diagnoses: v.array(v.string()),
+      notes: v.string(),
+    }),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireRole(ctx, "patient");
+    const intake = await ctx.db.get(args.intakeId);
+    if (!intake) throw new Error("Intake not found");
+    if (intake.patientId !== user._id) throw new Error("Not your intake");
+    await ctx.db.patch(args.intakeId, { extractedFields: args.extractedFields });
+  },
+});
+
 export const updateHealthIntake = mutation({
   args: {
     intakeId: v.id("healthIntake"),

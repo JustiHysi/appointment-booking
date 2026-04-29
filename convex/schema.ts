@@ -87,6 +87,26 @@ export default defineSchema({
         flags: v.array(v.string()),
       }),
     ),
+    extractedFields: v.optional(
+      v.object({
+        patientInfo: v.object({
+          name: v.optional(v.string()),
+          dateOfBirth: v.optional(v.string()),
+          mrn: v.optional(v.string()),
+        }),
+        labResults: v.array(
+          v.object({
+            name: v.string(),
+            value: v.string(),
+            unit: v.optional(v.string()),
+            referenceRange: v.optional(v.string()),
+          }),
+        ),
+        medicationsMentioned: v.array(v.string()),
+        diagnoses: v.array(v.string()),
+        notes: v.string(),
+      }),
+    ),
   })
     .index("by_patientId", ["patientId"])
     .index("by_appointmentId", ["appointmentId"]),

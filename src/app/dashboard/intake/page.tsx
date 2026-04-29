@@ -59,11 +59,15 @@ export default function IntakePage() {
     possibleConditions: string[]; recommendedTests: string[]; flags: string[];
   } | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [extractedFields, setExtractedFields] = useState<ExtractedFields | null>(null);
+  const [extractionLoading, setExtractionLoading] = useState(false);
 
-  const createIntake = useMutation(api.intake.createHealthIntake);      
+  const createIntake = useMutation(api.intake.createHealthIntake);
   const saveAiAnalysis = useMutation(api.intake.setAiAnalysis);
+  const saveExtractedFields = useMutation(api.intake.setExtractedFields);
   const generateUploadUrl = useMutation(api.doctors.generateUploadUrl);
   const analyzeIntake = useAction(api.ai.analyzeIntake);
+  const extractFields = useAction(api.ai.extractDocumentFields);
 
   const set = (u: Partial<FormData>) => setForm((p) => ({ ...p, ...u }));
 
@@ -147,7 +151,21 @@ export default function IntakePage() {
     } finally {
       setOcrProcessing(false);
       setStep(3);
-      runAiAnalysis(texts.join("\n\n---\n\n"));
+      const joined = texts.join("\n\n---\n\n");
+      runAiAnalysis(joined);
+      if (joined) runExtraction(joined);
+    }
+  }
+
+  async function runExtraction(text: string) {
+    setExtractionLoading(true);
+    try {
+      const result = await extractFields({ ocrText: text });
+      setExtractedFields(result);
+    } catch {
+      // Silent fail — raw text is still shown as fallback
+    } finally {
+      setExtractionLoading(false);
     }
   }
 
@@ -187,6 +205,9 @@ export default function IntakePage() {
       if (aiAnalysis) {
         await saveAiAnalysis({ intakeId: id, aiAnalysis });
       }
+      if (extractedFields) {
+        await saveExtractedFields({ intakeId: id, extractedFields });
+      }
       toast.success("Health intake saved!");
       router.push(`/dashboard/doctors?specialty=${encodeURIComponent(form.specialty)}&intakeId=${id}`);
     } catch (err) {
@@ -207,7 +228,16 @@ export default function IntakePage() {
         {step === 0 && <SpecialtyPicker value={form.specialty} onChange={(v) => set({ specialty: v })} />}
         {step === 1 && <HealthForm form={form} set={set} />}
         {step === 2 && <DocUpload form={form} set={set} generateUrl={generateUploadUrl} />}
-        {step === 3 && <Review form={form} onEdit={setStep} aiAnalysis={aiAnalysis} aiLoading={aiLoading} />}
+        {step === 3 && (
+          <Review
+            form={form}
+            onEdit={setStep}
+            aiAnalysis={aiAnalysis}
+            aiLoading={aiLoading}
+            extractedFields={extractedFields}
+            extractionLoading={extractionLoading}
+          />
+        )}
       </div>
 
       <div className="mt-6 flex justify-between">
@@ -376,7 +406,24 @@ function DocUpload({ form, set, generateUrl }: { form: FormData; set: (u: Partia
 
 type AiResult = { suggestedSpecialty: string; urgencyLevel: string; summary: string; possibleConditions: string[]; recommendedTests: string[]; flags: string[] };
 
-function Review({ form, onEdit, aiAnalysis, aiLoading }: { form: FormData; onEdit: (step: number) => void; aiAnalysis: AiResult | null; aiLoading: boolean }) {
+type ExtractedFields = {
+  patientInfo: { name?: string; dateOfBirth?: string; mrn?: string };
+  labResults: Array<{ name: string; value: string; unit?: string; referenceRange?: string }>;
+  medicationsMentioned: string[];
+  diagnoses: string[];
+  notes: string;
+};
+
+function Review({
+  form, onEdit, aiAnalysis, aiLoading, extractedFields, extractionLoading,
+}: {
+  form: FormData;
+  onEdit: (step: number) => void;
+  aiAnalysis: AiResult | null;
+  aiLoading: boolean;
+  extractedFields: ExtractedFields | null;
+  extractionLoading: boolean;
+}) {
   const painColor = form.painLevel <= 3 ? "bg-green-500" : form.painLevel <= 6 ? "bg-yellow-500" : "bg-red-500";
 
   return (
@@ -415,7 +462,18 @@ function Review({ form, onEdit, aiAnalysis, aiLoading }: { form: FormData; onEdi
         </div>
       </Card>
 
-      {form.ocrText && (
+      {extractionLoading && (
+        <Card>
+          <div className="flex items-center gap-3">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
+            <p className="text-sm font-medium text-slate-600">Parsing document fields...</p>
+          </div>
+        </Card>
+      )}
+
+      {extractedFields && <ExtractedFieldsCard data={extractedFields} />}
+
+      {!extractedFields && !extractionLoading && form.ocrText && (
         <Card>
           <h3 className="text-sm font-semibold text-slate-900">Extracted Text (OCR)</h3>
           <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{form.ocrText}</p>
@@ -498,5 +556,92 @@ function Field({ label, value }: { label: string; value: string }) {
       <p className="text-xs font-medium uppercase text-slate-400">{label}</p>
       <p className="text-sm text-slate-900">{value}</p>
     </div>
+  );
+}
+
+function ExtractedFieldsCard({ data }: { data: ExtractedFields }) {
+  const { patientInfo, labResults, medicationsMentioned, diagnoses, notes } = data;
+  const hasPatientInfo = patientInfo.name || patientInfo.dateOfBirth || patientInfo.mrn;
+  const isEmpty = !hasPatientInfo && labResults.length === 0 && medicationsMentioned.length === 0 && diagnoses.length === 0 && !notes;
+
+  if (isEmpty) {
+    return (
+      <Card>
+        <h3 className="text-sm font-semibold text-slate-900">Document Analysis</h3>
+        <p className="mt-2 text-sm text-slate-500">No structured medical data detected in the uploaded documents.</p>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="space-y-5">
+      <h3 className="text-sm font-semibold text-slate-900">Document Analysis</h3>
+
+      {hasPatientInfo && (
+        <div>
+          <p className="text-xs font-medium uppercase text-slate-400">Patient information</p>
+          <div className="mt-1 grid grid-cols-3 gap-3 text-sm">
+            {patientInfo.name && <div><span className="text-slate-500">Name: </span><span className="text-slate-900">{patientInfo.name}</span></div>}
+            {patientInfo.dateOfBirth && <div><span className="text-slate-500">DOB: </span><span className="text-slate-900">{patientInfo.dateOfBirth}</span></div>}
+            {patientInfo.mrn && <div><span className="text-slate-500">MRN: </span><span className="text-slate-900">{patientInfo.mrn}</span></div>}
+          </div>
+        </div>
+      )}
+
+      {labResults.length > 0 && (
+        <div>
+          <p className="text-xs font-medium uppercase text-slate-400">Lab results</p>
+          <div className="mt-2 overflow-x-auto rounded-xl border border-slate-200">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium">Test</th>
+                  <th className="px-3 py-2 text-left font-medium">Value</th>
+                  <th className="px-3 py-2 text-left font-medium">Reference</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {labResults.map((r, i) => (
+                  <tr key={i}>
+                    <td className="px-3 py-2 text-slate-900">{r.name}</td>
+                    <td className="px-3 py-2 text-slate-700">
+                      {r.value}{r.unit ? ` ${r.unit}` : ""}
+                    </td>
+                    <td className="px-3 py-2 text-slate-500">{r.referenceRange ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {medicationsMentioned.length > 0 && (
+        <div>
+          <p className="text-xs font-medium uppercase text-slate-400">Medications mentioned</p>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {medicationsMentioned.map((m, i) => (
+              <span key={i} className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700">{m}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {diagnoses.length > 0 && (
+        <div>
+          <p className="text-xs font-medium uppercase text-slate-400">Diagnoses / impressions</p>
+          <ul className="mt-1 list-inside list-disc text-sm text-slate-700">
+            {diagnoses.map((d, i) => <li key={i}>{d}</li>)}
+          </ul>
+        </div>
+      )}
+
+      {notes && (
+        <div>
+          <p className="text-xs font-medium uppercase text-slate-400">Notes</p>
+          <p className="mt-1 text-sm text-slate-700 whitespace-pre-wrap">{notes}</p>
+        </div>
+      )}
+    </Card>
   );
 }
